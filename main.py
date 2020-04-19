@@ -26,25 +26,37 @@ class Mouse(pygame.sprite.Sprite):
         self.buildat = [0,0]
         self.pos = [0,0]
         self.mask = pygame.mask.from_surface(self.image)
+        self.listmap = []
+        self.profit = 0
+        self.waveend = True
+        self.justwaveend = False
+        self.dontrepair = False
     def position(self):
         self.rect.left, self.rect.top = pygame.mouse.get_pos()
-        self.pos  = pygame.mouse.get_pos()
+        self.pos = pygame.mouse.get_pos()
 
-tiles, lines = map.createmap()
+mouse = Mouse()
+
+tiles, lines, mouse.listmap = map.createmap()
 gameobjects = pygame.sprite.Group()
 turrents = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 viruses = pygame.sprite.Group()
+effects = pygame.sprite.Group()
 gamebuttons = pygame.sprite.Group()
 wavebutton = ui.button("START WAVE 1", [5, 670])
+shopbutton = ui.button("SHOP", [5, 620])
 gamebuttons.add(wavebutton)
-tileselect = ["computer", "firewall", "antivirus", "server"]
+gamebuttons.add(shopbutton)
+tileselect = ["computer", "firewall", "antivirus", "server", "repair"]
+tileprice = [5, 10, 20, 60, 10]
 tile = 0
-bitcoin = 10
+bitcoin = 1000
 wave = 0
 wavestarted = False
 tile_rotation = "left"
 currenttile = pygame.image.load("./resources/images/" + tileselect[tile] + "-" + tile_rotation + ".png")
+currenttile_ = pygame.image.load("./resources/images/" + tileselect[tile] + "-" + tile_rotation + ".png")
 currenttile.set_alpha(128)
 currenttilerect = currenttile.get_rect()
 waves = [5, 10, 20, 25, 40, 50]
@@ -63,13 +75,12 @@ def createvirus():
     viruses.add(virus)
 
 def settile():
-    global tile, tileselect, currenttile, currenttilerect, currentrectpos, tile_rotation
+    global tile, tileselect, currenttile, currenttilerect, currentrectpos, tile_rotation, currenttile_
     currenttile = pygame.image.load("./resources/images/" + tileselect[tile] + "-" + tile_rotation + ".png")
+    currenttile_ = pygame.image.load("./resources/images/" + tileselect[tile] + "-" + tile_rotation + ".png")
     currenttile.set_alpha(128)
     currenttilerect = currenttile.get_rect()
     currentrectpos = Vector2(currenttilerect.width / 2, currenttilerect.height / 2)
-
-mouse = Mouse()
 
 running = True
 
@@ -101,10 +112,12 @@ while running:
         if event.type == pygame.MOUSEMOTION:
             mouse.position()
             if click == 1:
-                tiles.update("click", mouse)
+                if tileselect[tile] == "repair":
+                    tiles.update("clickdead", mouse)
+                else:
+                    tiles.update("click", mouse)
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse.position()
-            print(pygame.mouse.get_pressed())
             if pygame.mouse.get_pressed()[0] == 1:
                 if wavebutton.click(mouse):
                     wavestarted = True
@@ -115,31 +128,61 @@ while running:
                     except:
                         virusestocreate = 50 + (10 * (wave-5))
                     wavebutton.text = "WAVE STARTED"
+                    pygame.time.set_timer(pygame.USEREVENT + 1, 2000)
+                    sounds["action"].play()
+                    mouse.waveend = False
+                elif shopbutton.click(mouse):
+                    if click == 0:
+                        click = 1
+                        sounds["action"].play()
+                        shopbutton.text = "EXIT SHOP"
+                    elif shopbutton.text == "EXIT SHOP":
+                        click = 0
+                        sounds["action"].play()
+                        shopbutton.text = "SHOP"
                 elif click == 1:
                     click = 2
                     sounds["action"].play()
                 if click == 2:
                     tiles.update("click", mouse)
-                    if not mouse.buildat == [0, 0]:
+                    if not mouse.buildat == [0, 0] and bitcoin >= tileprice[tile]:
                         sounds["action"].play()
-                        newobj = objects.object(mouse.buildat - Vector2(4, 4), tileselect[tile] + "-" + tile_rotation)
-                        if tileselect[tile] == "antivirus":
-                            turrents.add(newobj)
-                        gameobjects.add(newobj)
-                        oldpos = mouse.pos
-                        mouse.pos = Vector2(newobj.rect.left, newobj.rect.top) - Vector2(64, 17)
-                        mouse.rect.center = Vector2(newobj.rect.left, newobj.rect.top) - Vector2(64, 17)
-                        oldmask = mouse.mask
-                        if not tileselect[tile] == "wall":
-                            tiles.update("typeobject", mouse)
+                        if not tileselect[tile] == "repair":
+                            newobj = objects.object(mouse.buildat - Vector2(4, 4), tileselect[tile] + "-" + tile_rotation)
+                            if tileselect[tile] == "antivirus":
+                                turrents.add(newobj)
+                            gameobjects.add(newobj)
+                            oldpos = mouse.pos
+                            mouse.pos = Vector2(newobj.rect.left, newobj.rect.top) - Vector2(64, 17)
+                            mouse.rect.center = Vector2(newobj.rect.left, newobj.rect.top) - Vector2(64, 17)
+                            oldmask = mouse.mask
+                            if not tileselect[tile] == "wall":
+                                tiles.update("typeobject", mouse)
+                                tiles.update("listmap", mouse)
+                        if tileselect[tile] == "repair":
+                            oldpos = mouse.pos
+                            oldmask = mouse.mask
+                            mouse.rect.center = mouse.buildat - Vector2(64, 17)
+                            tiles.update("repair", mouse)
+                            tiles.update("listmap", mouse)
+                            newobj = mouse
+                            tiles.update("alive", mouse)
                         mouse.pos = oldpos
                         mouse.mask = oldmask
                         mouse.buildat = [0, 0]
-                        click = 0
-            elif pygame.mouse.get_pressed()[2] == 1:
-                if click == 0:
-                    click = 1
-                    sounds["action"].play()
+                        mouse.rect.center = oldpos
+                        click = 1
+                        if not mouse.dontrepair:
+                            neweffect = entities.effects(newobj.rect.center, "-"+str(tileprice[tile])+"B", color=[188, 28, 36])
+                            effects.add(neweffect)
+                            bitcoin -= int(tileprice[tile])
+                        mouse.dontrepair = False
+                    elif mouse.buildat == [0, 0]:
+                        click = 1
+                    elif bitcoin < tileprice[tile]:
+                        neweffect = entities.effects([656, 610], "NOT ENOUGH MONEY!", color=[188, 28, 36])
+                        effects.add(neweffect)
+                        click = 1
             elif event.button == 4 and click == 1:
                 tile += 1
                 if tile > len(tileselect) - 1:
@@ -153,7 +196,7 @@ while running:
                 settile()
                 sounds["action"].play()
         if event.type == pygame.USEREVENT:
-            viruses.update(tiles, router, bullets)
+            viruses.update(tiles, router, bullets, effects, mouse)
             bullets.update()
         if event.type == pygame.USEREVENT+1 and virusescreated < virusestocreate and wavestarted:
             createvirus()
@@ -170,24 +213,46 @@ while running:
     ui.fontSize(18)
 
     tiles.draw(window)
-    bullets.draw(window)
+    if wavestarted:
+        bullets.draw(window)
     gameobjects.draw(window)
     lines.draw(window)
     router.draw(window)
     viruses.draw(window)
     gamebuttons.draw(window)
+    effects.draw(window)
 
-    gameobjects.update(bullets)
+    bitcoin += mouse.profit
+    mouse.profit = 0
+
+    gameobjects.update(bullets, effects, mouse)
     gamebuttons.update(mouse)
+    effects.update()
+    tiles.update("listmap", mouse)
+    mouse.justwaveend = False
 
     if virusestocreate <= virusescreated and len(viruses.sprites()) == 0:
         wavestarted = False
+        mouse.waveend = True
+        if not mouse.waveend:
+            mouse.justwaveend = True
+            gameobjects.update(bullets, effects, mouse)
         wavebutton.text = "START WAVE " + str(wave+1)
         virusescreated = 0
         virusestocreate = 0
 
+
     if click == 1:
-        window.blit(currenttile, mouse.buildat - currentrectpos)
+        window.blit(currenttile, mouse.buildat - currentrectpos - Vector2(4, 4))
+        window.blit(currenttile_, [640, 620])
+        ui.fontSize(18)
+        ui.centertext(tileselect[tile].capitalize(), [660, 650], window)
+        ui.fontSize(12)
+        if bitcoin < tileprice[tile]:
+            ui.centertext(str(tileprice[tile]) + " BITCOIN", [660, 680], window, color=[188, 28, 36])
+        else:
+            ui.centertext(str(tileprice[tile]) + " BITCOIN", [660, 680], window, color=[42, 216, 93])
+        ui.fontSize(18)
 
     pygame.display.flip()
 pygame.quit()

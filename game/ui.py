@@ -13,9 +13,14 @@ def fontSize(size):
     global font
     font = pygame.font.Font("./resources/Pixeled.ttf", int(size))
 
-def text(text, pos, window):
-    render = font.render(str(text), 1, [255, 255, 255])
+def text(text, pos, window, color=[255, 255, 255]):
+    render = font.render(str(text), 1, color)
     window.blit(render, pos)
+
+def centertext(text, pos, window, color=[255, 255, 255]):
+    render = font.render(str(text), 1, color)
+    rect = render.get_rect()
+    window.blit(render, [pos[0]-rect.width/2, pos[1]])
 
 class button(pygame.sprite.Sprite):
     def __init__(self, text, pos):
@@ -34,4 +39,4 @@ class button(pygame.sprite.Sprite):
         if self.rect.collidepoint(mouse.rect.topleft):
             self.image = font.render(str(self.text), 1, [255, 255, 255])
         else:
-            self.image = font.render(str(self.text), 1, [200, 200, 200])
+            self.image = font.render(str(self.text), 1, [170, 170, 170])
